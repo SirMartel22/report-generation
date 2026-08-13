@@ -1,0 +1,231 @@
+// Prisma Schema for Multi-Tenant, Offline-First Report Management SaaS Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Tenant {
+  id                    String      @id @default(uuid())
+  slug                  String      @unique // e.g. "bhbc", "acmecorp"
+  name                  String
+  domain                String?     @unique // e.g. "bhbc.reportapp.com"
+  databaseUrl           String?     // Dedicated DB URL if configured
+  
+  // Subscription
+  subscriptionTier      String      @default("free") // "free", "trial", "pro", "enterprise"
+  trialExpiresAt        DateTime?
+  trialUsed             Boolean     @default(false)
+  
+  // Customization
+  logoUrl               String?
+  brandColor            String      @default("#007bff")
+  subunitNames          String      @default("[\"Livestream\", \"Socials\", \"Videography\", \"Photography\"]") // JSON array string
+  
+  // Reminder Settings
+  weeklyReminderEnabled Boolean     @default(true)
+  reminderDay           String      @default("monday")
+  reminderHour          Int         @default(9)
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  deletedAt             DateTime?
+
+  memberships           UserTenantMembership[]
+  subscriptions         Subscription[]
+  invitations           Invitation[]
+  reports               Report[]
+  quarterlyReports      QuarterlyReportGeneration[]
+  notifications         Notification[]
+  settings              Setting[]
+  auditLogs             AuditLog[]
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  email                String                 @unique
+  passwordHash         String
+  name                 String
+  globalRole           String                 @default("USER") // SYSTEM_ADMIN, USER
+  
+  pushSubscription     String?                // JSON stringified PushSubscription
+  notificationsEnabled Boolean                @default(true)
+  
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  memberships          UserTenantMembership[]
+  reports              Report[]
+  deletedReports       DeletedReport[]
+  quarterlyReports     QuarterlyReportGeneration[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+}
+
+model UserTenantMembership {
+  id        String   @id @default(uuid())
+  userId    String
+  tenantId  String
+  role      String   @default("SUBUNIT_HEAD") // "ADMIN", "SUBUNIT_HEAD", "SYSTEM_ADMIN"
+  subunit   String?  // Subunit assignment (e.g. "Livestream")
+  joinedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+}
+
+model Subscription {
+  id                     String    @id @default(uuid())
+  tenantId               String    @unique
+  plan                   String    @default("free") // "free", "pro", "enterprise"
+  maxUsers               Int       @default(5)
+  maxReportsPerMonth     Int       @default(50)
+  maxOfflineCacheReports Int       @default(10)
+  features               String    @default("[\"basic_ai\", \"offline_sync\"]") // JSON string array
+  billingPeriodStart     DateTime  @default(now())
+  billingPeriodEnd       DateTime?
+  
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Invitation {
+  id         String    @id @default(uuid())
+  tenantId   String
+  email      String
+  token      String    @unique
+  role       String    @default("SUBUNIT_HEAD")
+  subunit    String?
+  invitedBy  String
+  acceptedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id               String       @id @default(uuid())
+  userId           String
+  tenantId         String
+  subunit          String
+  reportType       String       @default("TEXT") // "TEXT", "VOICE", "IMAGE"
+  
+  textContent      String?
+  imageUrl         String?
+  imageDescription String?
+  audioUrl         String?
+  
+  tags             String       @default("[]") // JSON string array
+  status           String       @default("SUBMITTED") // "DRAFT", "SUBMITTED", "ARCHIVED", "CONFLICT"
+  isDeleted        Boolean      @default(false)
+  
+  version          Int          @default(1)
+  syncedAt         DateTime?
+  submittedAt      DateTime?    @default(now())
+  
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+  @@index([subunit])
+  @@index([submittedAt])
+  @@index([status])
+}
+
+model DeletedReport {
+  id        String   @id @default(uuid())
+  reportId  String
+  userId    String
+  deletedBy String
+  deletedAt DateTime @default(now())
+  reason    String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QuarterlyReportGeneration {
+  id                   String    @id @default(uuid())
+  generatedBy          String
+  tenantId             String
+  startDate            DateTime
+  endDate              DateTime
+  subunits             String    @default("[]") // JSON string array
+  reportFormat         String    @default("[\"PDF\"]") // JSON string array
+  content              String    // Full aggregated report markdown/HTML
+  
+  totalReportsIncluded Int       @default(0)
+  downloadedAt         DateTime?
+  downloadedBy         String?
+  
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user                 User      @relation(fields: [generatedBy], references: [id], onDelete: Cascade)
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([generatedBy])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  tenantId  String
+  type      String    @default("SYSTEM") // "WEEKLY_REMINDER", "SUBMISSION_CONFIRMATION", "REPORT_READY", "SYNC_CONFLICT"
+  subject   String
+  body      String
+  actionUrl String?
+  sentAt    DateTime  @default(now())
+  readAt    DateTime?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tenantId])
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  tenantId    String
+  key         String
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?
+  userId     String?
+  entityType String   // "report", "user", "tenant", "setting"
+  entityId   String?
+  action     String   // "CREATE", "UPDATE", "DELETE", "LOGIN"
+  oldValues  String?  // JSON string
+  newValues  String?  // JSON string
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  tenant     Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+}
