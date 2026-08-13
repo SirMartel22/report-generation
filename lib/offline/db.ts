@@ -18,9 +18,14 @@ export interface LocalReport {
   createdAt: number;
   updatedAt: number;
   // Conflict details if status === 'CONFLICT'
-  serverVersion?: any;
-  clientVersion?: any;
+  serverVersion?: ServerReportSnapshot;
+  clientVersion?: LocalReport;
 }
+
+export type ServerReportSnapshot = Omit<LocalReport, 'createdAt' | 'updatedAt'> & {
+  createdAt: number | string;
+  updatedAt: number | string;
+};
 
 export interface SyncQueueItem {
   id?: number;

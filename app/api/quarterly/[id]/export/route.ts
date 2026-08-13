@@ -13,6 +13,9 @@ export async function GET(
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (session.membership.role !== 'ADMIN' && session.membership.role !== 'SYSTEM_ADMIN') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -39,7 +42,7 @@ export async function GET(
 
     if (format === 'docx' || format === 'word') {
       const buffer = await generateQuarterlyDocx(title, tenantName, dateRange, quarterlyReport.content);
-      return new NextResponse(new Uint8Array(buffer), {
+      return new NextResponse(Uint8Array.from(buffer).buffer, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           'Content-Disposition': `attachment; filename="Quarterly_Report_${id.substring(0, 8)}.docx"`,
@@ -49,7 +52,7 @@ export async function GET(
 
     // Default to PDF
     const pdfBytes = await generateQuarterlyPDF(title, tenantName, dateRange, quarterlyReport.content);
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(Uint8Array.from(pdfBytes).buffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Quarterly_Report_${id.substring(0, 8)}.pdf"`,

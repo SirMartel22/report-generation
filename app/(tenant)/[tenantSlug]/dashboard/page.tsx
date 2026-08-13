@@ -1,10 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { FileText, Sparkles, CheckCircle2, Clock, Plus, ArrowRight, Mic, Image as ImageIcon, Layers, RefreshCw } from 'lucide-react';
 import { getOfflineDB, LocalReport } from '@/lib/offline/db';
+import { mapServerReport } from '@/lib/reports/client';
+
+function calculateStats(items: LocalReport[]) {
+  return {
+    total: items.length,
+    synced: items.filter((item) => item.status === 'SYNCED').length,
+    pending: items.filter((item) => item.status === 'DRAFT' || item.status === 'SUBMITTED').length,
+    conflicts: items.filter((item) => item.status === 'CONFLICT').length,
+  };
+}
 
 export default function DashboardPage() {
   const params = useParams();
@@ -19,43 +29,18 @@ export default function DashboardPage() {
     conflicts: 0,
   });
 
-  useEffect(() => {
-    fetchReports();
-  }, [tenantSlug]);
-
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     let serverMapped: LocalReport[] = [];
-    const token = typeof window !== 'undefined' ? localStorage.getItem('reportapp_token') : null;
-
     try {
       // 1. Try server fetch
-      const headers: Record<string, string> = { 'X-Tenant-ID': tenantSlug };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch('/api/reports', { headers });
+      const res = await fetch('/api/reports');
 
       if (res.ok) {
-        const data = await res.json();
-        serverMapped = (data.reports || []).map((r: any) => ({
-          id: r.id,
-          userId: r.userId,
-          tenantId: r.tenantId,
-          subunit: r.subunit,
-          reportType: r.reportType,
-          textContent: r.textContent,
-          imageUrl: r.imageUrl,
-          imageDescription: r.imageDescription,
-          audioUrl: r.audioUrl,
-          tags: r.tags ? (typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags) : [],
-          status: 'SYNCED',
-          version: r.version,
-          createdAt: new Date(r.createdAt).getTime(),
-          updatedAt: new Date(r.updatedAt).getTime(),
-          submittedAt: new Date(r.submittedAt || r.createdAt).getTime(),
-        }));
+        const data = (await res.json()) as { reports?: unknown[] };
+        serverMapped = (data.reports || [])
+          .map(mapServerReport)
+          .filter((report): report is LocalReport => report !== null);
       }
     } catch (err) {
       console.error('Failed to fetch server reports:', err);
@@ -76,33 +61,19 @@ export default function DashboardPage() {
         return timeB - timeA;
       });
       setReports(combined);
-      calculateStats(combined);
-    } catch (e) {
+      setStats(calculateStats(combined));
+    } catch {
       setReports(serverMapped);
-      calculateStats(serverMapped);
+      setStats(calculateStats(serverMapped));
     } finally {
       setLoading(false);
     }
-  };
+  }, [tenantSlug]);
 
-  const calculateStats = (items: LocalReport[]) => {
-    let synced = 0;
-    let pending = 0;
-    let conflicts = 0;
-
-    items.forEach((item) => {
-      if (item.status === 'SYNCED') synced++;
-      else if (item.status === 'DRAFT' || item.status === 'SUBMITTED') pending++;
-      else if (item.status === 'CONFLICT') conflicts++;
-    });
-
-    setStats({
-      total: items.length,
-      synced,
-      pending,
-      conflicts,
-    });
-  };
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void fetchReports(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [fetchReports]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -125,7 +96,7 @@ export default function DashboardPage() {
             Submit New Report
           </Link>
           <Link
-            href={`/${tenantSlug}/quarterly`}
+            href={`/${tenantSlug}/quarterly/generate`}
             className="glass-card hover:bg-slate-800 text-slate-200 text-xs font-semibold px-5 py-3 rounded-xl border border-slate-700 transition-all flex items-center gap-2"
           >
             <Sparkles className="w-4 h-4 text-purple-400" />

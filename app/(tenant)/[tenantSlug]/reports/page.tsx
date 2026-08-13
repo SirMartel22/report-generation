@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Search, Filter, CheckCircle2, Clock, AlertTriangle, Layers, Tag, Trash2 } from 'lucide-react';
+import { Search, Filter, CheckCircle2, Clock, AlertTriangle, Layers } from 'lucide-react';
 import { getOfflineDB, LocalReport } from '@/lib/offline/db';
 import ConflictModal from '@/components/reports/ConflictModal';
 import { SyncManager } from '@/lib/offline/syncManager';
+import { mapServerReport } from '@/lib/reports/client';
 
 export default function ReportsHistoryPage() {
   const params = useParams();
@@ -19,42 +20,17 @@ export default function ReportsHistoryPage() {
 
   const subunits = ['ALL', 'Livestream', 'Socials', 'Videography', 'Photography'];
 
-  useEffect(() => {
-    loadReports();
-  }, [tenantSlug]);
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     let serverMapped: LocalReport[] = [];
-    const token = typeof window !== 'undefined' ? localStorage.getItem('reportapp_token') : null;
-
     try {
       // 1. Try server fetch
-      const headers: Record<string, string> = { 'X-Tenant-ID': tenantSlug };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      const res = await fetch('/api/reports', { headers });
+      const res = await fetch('/api/reports');
 
       if (res.ok) {
-        const data = await res.json();
-        serverMapped = (data.reports || []).map((r: any) => ({
-          id: r.id,
-          userId: r.userId,
-          tenantId: r.tenantId,
-          subunit: r.subunit,
-          reportType: r.reportType,
-          textContent: r.textContent,
-          imageUrl: r.imageUrl,
-          imageDescription: r.imageDescription,
-          audioUrl: r.audioUrl,
-          tags: r.tags ? (typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags) : [],
-          status: 'SYNCED',
-          version: r.version,
-          createdAt: new Date(r.createdAt).getTime(),
-          updatedAt: new Date(r.updatedAt).getTime(),
-          submittedAt: new Date(r.submittedAt || r.createdAt).getTime(),
-        }));
+        const data = (await res.json()) as { reports?: unknown[] };
+        serverMapped = (data.reports || [])
+          .map(mapServerReport)
+          .filter((report): report is LocalReport => report !== null);
       }
     } catch (err) {
       console.error('Failed to fetch server reports:', err);
@@ -76,18 +52,22 @@ export default function ReportsHistoryPage() {
         return timeB - timeA;
       });
       setReports(combined);
-    } catch (e) {
+    } catch {
       setReports(serverMapped);
     }
-  };
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadReports(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadReports]);
 
   const handleResolveConflict = async (choice: 'keep_local' | 'use_server') => {
     if (!selectedConflictReport) return;
-    const token = localStorage.getItem('reportapp_token') || undefined;
-    const syncManager = new SyncManager(tenantSlug, token);
+    const syncManager = new SyncManager(tenantSlug);
     await syncManager.resolveConflict(selectedConflictReport.id, choice);
     setSelectedConflictReport(null);
-    loadReports();
+    await loadReports();
   };
 
   const filteredReports = reports.filter((report) => {

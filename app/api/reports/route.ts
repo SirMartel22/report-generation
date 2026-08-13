@@ -12,12 +12,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const subunit = searchParams.get('subunit');
     const status = searchParams.get('status');
+    const assignedSubunit =
+      session.membership.role === 'SUBUNIT_HEAD' ? session.membership.subunit : null;
 
     const reports = await db.report.findMany({
       where: {
         tenantId: session.tenant.id,
         isDeleted: false,
-        ...(subunit && subunit !== 'ALL' ? { subunit } : {}),
+        ...(assignedSubunit
+          ? { subunit: assignedSubunit }
+          : subunit && subunit !== 'ALL'
+            ? { subunit }
+            : {}),
         ...(status && status !== 'ALL' ? { status } : {}),
       },
       include: {
@@ -45,7 +51,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { id, subunit, reportType, textContent, imageUrl, imageDescription, audioUrl, tags } = body;
 
-    if (!subunit || !session.tenant.subunitNames.includes(subunit)) {
+    const canSubmitToSubunit =
+      session.tenant.subunitNames.includes(subunit) &&
+      (session.membership.role !== 'SUBUNIT_HEAD' || session.membership.subunit === subunit);
+    if (!subunit || !canSubmitToSubunit) {
       return NextResponse.json({ error: 'A valid tenant subunit is required.' }, { status: 400 });
     }
 

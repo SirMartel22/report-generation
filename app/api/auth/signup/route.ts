@@ -21,7 +21,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant URL slug already taken.' }, { status: 409 });
     }
 
-    const existingUser = await db.user.findUnique({ where: { email } });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return NextResponse.json({ error: 'User with this email already exists.' }, { status: 409 });
     }
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
     // Create User
     const user = await db.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         passwordHash: hashedPassword,
         name,
       },

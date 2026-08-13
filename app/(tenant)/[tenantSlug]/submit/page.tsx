@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { FileText, Mic, Image as ImageIcon, Sparkles, Send, CheckCircle2, AlertCircle, Loader2, Tag, Play, Square } from 'lucide-react';
+import { FileText, Mic, Image as ImageIcon, Sparkles, Send, CheckCircle2, AlertCircle, Loader2, Tag, Square } from 'lucide-react';
 import { SyncManager } from '@/lib/offline/syncManager';
 
 export default function SubmitReportPage() {
@@ -38,7 +38,7 @@ export default function SubmitReportPage() {
       const res = await fetch('/api/ai/transcribe', { method: 'POST' });
       const data = await res.json();
       setTextContent((prev) => (prev ? `${prev}\n\n${data.transcription}` : data.transcription));
-    } catch (err) {
+    } catch {
       // fallback
     } finally {
       setAiLoading(false);
@@ -56,7 +56,7 @@ export default function SubmitReportPage() {
       });
       const data = await res.json();
       setImageDescription(data.description);
-    } catch (err) {
+    } catch {
       // fallback
     } finally {
       setAiLoading(false);
@@ -81,16 +81,12 @@ export default function SubmitReportPage() {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('reportapp_token') || undefined;
-      const userStr = localStorage.getItem('reportapp_user');
-      const userId = userStr ? JSON.parse(userStr).id : 'demo-user';
-
-      const syncManager = new SyncManager(tenantSlug, token);
+      const syncManager = new SyncManager(tenantSlug);
 
       const parsedTags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
 
       const result = await syncManager.submitReport({
-        userId,
+        userId: 'current-user',
         subunit,
         reportType,
         textContent: textContent || imageDescription,
@@ -109,8 +105,8 @@ export default function SubmitReportPage() {
       setTimeout(() => {
         router.push(`/${tenantSlug}/dashboard`);
       }, 1500);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Submission failed');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Submission failed');
     } finally {
       setSubmitting(false);
     }

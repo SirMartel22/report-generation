@@ -27,14 +27,10 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
 
-      // Save token to localStorage / Cookie
-      localStorage.setItem('reportapp_token', data.token);
-      localStorage.setItem('reportapp_user', JSON.stringify(data.user));
-      localStorage.setItem('reportapp_tenant', JSON.stringify(data.tenant));
-
       router.push(`/${data.tenant.slug}/dashboard`);
-    } catch (err: any) {
-      setError(err.message);
+      router.refresh();
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Login failed');
     } finally {
       setLoading(false);
     }

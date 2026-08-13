@@ -9,6 +9,9 @@ export async function GET(request: Request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (session.membership.role !== 'ADMIN' && session.membership.role !== 'SYSTEM_ADMIN') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
     const quarterlyReports = await db.quarterlyReportGeneration.findMany({
       where: { tenantId: session.tenant.id },
@@ -32,6 +35,9 @@ export async function POST(request: Request) {
     const session = await getRequestSession(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.membership.role !== 'ADMIN' && session.membership.role !== 'SYSTEM_ADMIN') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     const body = await request.json();

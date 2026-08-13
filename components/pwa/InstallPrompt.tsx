@@ -3,12 +3,18 @@
 import { useEffect, useState } from 'react';
 import { Download, X, Sparkles } from 'lucide-react';
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
 export default function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    const handleBeforeInstall = (e: Event) => {
+    const handleBeforeInstall = (event: Event) => {
+      const e = event as BeforeInstallPromptEvent;
       e.preventDefault();
       setDeferredPrompt(e);
       setShowPrompt(true);

@@ -1,16 +1,16 @@
-import { getOfflineDB, LocalReport, SyncQueueItem } from './db';
+import { getOfflineDB, LocalReport } from './db';
+
+interface SyncConflict {
+  id: string;
+  serverVersion: unknown;
+  clientVersion: unknown;
+}
 
 export class SyncManager {
   private tenantId: string;
-  private token: string | null = null;
 
-  constructor(tenantId: string, token?: string) {
+  constructor(tenantId: string) {
     this.tenantId = tenantId;
-    this.token = token || null;
-  }
-
-  setToken(token: string) {
-    this.token = token;
   }
 
   /**
@@ -69,7 +69,7 @@ export class SyncManager {
   /**
    * Process pending items in sync queue
    */
-  async syncPendingQueue(): Promise<{ synced: number; failed: number; conflicts: any[] }> {
+  async syncPendingQueue(): Promise<{ synced: number; failed: number; conflicts: SyncConflict[] }> {
     if (typeof window === 'undefined' || !navigator.onLine) {
       return { synced: 0, failed: 0, conflicts: [] };
     }
@@ -81,7 +81,7 @@ export class SyncManager {
       return { synced: 0, failed: 0, conflicts: [] };
     }
 
-    const results = { synced: 0, failed: 0, conflicts: [] as any[] };
+    const results = { synced: 0, failed: 0, conflicts: [] as SyncConflict[] };
 
     for (const item of queue) {
       try {
@@ -89,8 +89,6 @@ export class SyncManager {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-            'X-Tenant-ID': this.tenantId,
           },
           body: JSON.stringify({ items: [item] }),
         });
@@ -151,7 +149,7 @@ export class SyncManager {
           }
           results.failed++;
         }
-      } catch (err) {
+      } catch {
         item.retries++;
         if (item.retries < 5 && item.id) {
           await db.syncQueue.put(item);

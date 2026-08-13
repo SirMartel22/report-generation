@@ -1,4 +1,5 @@
 import { db } from './prisma';
+import type { Prisma } from '@prisma/client';
 
 export interface TenantContext {
   id: string;
@@ -31,7 +32,7 @@ export async function getTenantContext(tenantIdentifier: string): Promise<Tenant
     if (tenant.subunitNames) {
       subunitNames = JSON.parse(tenant.subunitNames);
     }
-  } catch (e) {
+  } catch {
     // fallback
   }
 
@@ -52,7 +53,7 @@ export class TenantDatabaseClient {
   constructor(public tenantId: string) {}
 
   async getReports(filters?: { subunit?: string; status?: string; userId?: string }) {
-    const whereClause: any = {
+    const whereClause: Prisma.ReportWhereInput = {
       tenantId: this.tenantId,
       isDeleted: false,
     };
@@ -129,9 +130,10 @@ export class TenantDatabaseClient {
     if (!existing) throw new Error('Report not found');
 
     if (data.version && data.version < existing.version) {
-      const conflictError: any = new Error('Conflict: Server has newer version');
-      conflictError.status = 409;
-      conflictError.serverVersion = existing;
+      const conflictError = Object.assign(new Error('Conflict: Server has newer version'), {
+        status: 409,
+        serverVersion: existing,
+      });
       throw conflictError;
     }
 

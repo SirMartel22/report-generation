@@ -36,7 +36,10 @@ export async function POST(request: Request) {
       const data = item.data;
       if (!data?.id) continue;
 
-      if (!data.subunit || !session.tenant.subunitNames.includes(data.subunit)) {
+      const canSubmitToSubunit =
+        Boolean(data.subunit && session.tenant.subunitNames.includes(data.subunit)) &&
+        (session.membership.role !== 'SUBUNIT_HEAD' || session.membership.subunit === data.subunit);
+      if (!data.subunit || !canSubmitToSubunit) {
         errors.push({ id: data.id, message: 'Invalid tenant subunit' });
         continue;
       }

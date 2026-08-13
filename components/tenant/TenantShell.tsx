@@ -41,12 +41,17 @@ export default function TenantShell({
     router.refresh();
   };
 
+  const isAdmin = user.role === 'ADMIN' || user.role === 'SYSTEM_ADMIN';
   const navItems = [
     { label: 'Dashboard', href: `/${tenantSlug}/dashboard`, icon: LayoutDashboard },
     { label: 'Submit Report', href: `/${tenantSlug}/submit`, icon: FilePlus },
     { label: 'All Reports', href: `/${tenantSlug}/reports`, icon: FileText },
-    { label: 'AI Quarterly Reports', href: `/${tenantSlug}/quarterly/generate`, icon: Sparkles },
-    { label: 'Tenant Settings', href: `/${tenantSlug}/settings`, icon: Settings },
+    ...(isAdmin
+      ? [
+          { label: 'AI Quarterly Reports', href: `/${tenantSlug}/quarterly/generate`, icon: Sparkles },
+          { label: 'Tenant Settings', href: `/${tenantSlug}/settings`, icon: Settings },
+        ]
+      : []),
   ];
 
   return (

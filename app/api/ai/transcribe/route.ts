@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { transcribeAudio } from '@/lib/ai/gemma';
+import { getRequestSession } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
   try {
+    const session = await getRequestSession(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('audio') as File | null;
 
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
     const transcription = await transcribeAudio(buffer, file.type);
 
     return NextResponse.json({ transcription });
-  } catch (error: any) {
+  } catch {
     return NextResponse.json({
       transcription: "Voice Report Summary: Operational sound and camera check completed without errors."
     });

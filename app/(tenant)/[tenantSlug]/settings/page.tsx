@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Settings, HardDrive, Users, Layers, Trash2, CheckCircle2, Shield, UserPlus, Mail, Sparkles, RefreshCw } from 'lucide-react';
 import { getOfflineDB } from '@/lib/offline/db';
@@ -28,21 +28,22 @@ export default function TenantSettingsPage() {
   const [inviteRole, setInviteRole] = useState('SUBUNIT_HEAD');
   const [inviteSuccess, setInviteSuccess] = useState('');
 
-  useEffect(() => {
-    loadStorageStats();
-  }, [tenantSlug]);
-
-  const loadStorageStats = async () => {
+  const loadStorageStats = useCallback(async () => {
     try {
       const db = getOfflineDB(tenantSlug);
       const rCount = await db.reports.count();
       const qCount = await db.syncQueue.count();
       setReportCount(rCount);
       setQueueCount(qCount);
-    } catch (e) {
+    } catch {
       // ignore
     }
-  };
+  }, [tenantSlug]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadStorageStats(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadStorageStats]);
 
   const handleAddSubunit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,10 +63,10 @@ export default function TenantSettingsPage() {
       const db = getOfflineDB(tenantSlug);
       await db.reports.clear();
       await db.syncQueue.clear();
-      loadStorageStats();
+      await loadStorageStats();
       setStorageSuccess('Local IndexedDB offline cache cleared successfully!');
       setTimeout(() => setStorageSuccess(''), 3000);
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -126,7 +127,7 @@ export default function TenantSettingsPage() {
         <div className="glass-panel p-8 rounded-3xl border border-slate-800 space-y-6">
           <div>
             <h3 className="text-base font-bold text-white">Organization Subunit Structure</h3>
-            <p className="text-xs text-slate-400">Adapt department/subunit names to your team's workflow</p>
+            <p className="text-xs text-slate-400">Adapt department/subunit names to your team&apos;s workflow</p>
           </div>
 
           <form onSubmit={handleAddSubunit} className="flex gap-3">

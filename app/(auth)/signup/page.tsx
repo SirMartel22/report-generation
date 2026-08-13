@@ -41,13 +41,10 @@ export default function SignupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Signup failed');
 
-      localStorage.setItem('reportapp_token', data.token);
-      localStorage.setItem('reportapp_user', JSON.stringify(data.user));
-      localStorage.setItem('reportapp_tenant', JSON.stringify(data.tenant));
-
       router.push(`/${data.tenant.slug}/dashboard`);
-    } catch (err: any) {
-      setError(err.message);
+      router.refresh();
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Signup failed');
     } finally {
       setLoading(false);
     }

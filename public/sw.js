@@ -1,4 +1,4 @@
-const CACHE_NAME = 'reportapp-v1';
+const CACHE_NAME = 'reportapp-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -36,21 +36,10 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests for SW cache
   if (request.method !== 'GET') return;
 
-  // API calls: Network-first
+  // Authenticated API responses must never be placed in shared Cache Storage.
+  // Offline report data is isolated per tenant in IndexedDB instead.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(request);
-        })
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

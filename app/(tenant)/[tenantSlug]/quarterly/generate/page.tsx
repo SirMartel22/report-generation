@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Sparkles, Calendar, Layers, Download, FileText, CheckCircle2, ArrowRight, Loader2, Edit3, Eye } from 'lucide-react';
 import { getOfflineDB } from '@/lib/offline/db';
 
 export default function QuarterlyGeneratePage() {
-  const router = useRouter();
   const params = useParams();
   const tenantSlug = (params?.tenantSlug as string) || 'bhbc';
 
@@ -22,7 +21,7 @@ export default function QuarterlyGeneratePage() {
   const [exportFormats, setExportFormats] = useState<string[]>(['PDF', 'WORD']);
 
   const [generating, setGenerating] = useState(false);
-  const [compiledReport, setCompiledReport] = useState<any>(null);
+  const [compiledReport, setCompiledReport] = useState<{ id: string; content: string } | null>(null);
   const [previewContent, setPreviewContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
@@ -47,14 +46,10 @@ export default function QuarterlyGeneratePage() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const token = localStorage.getItem('reportapp_token') || undefined;
-
       const res = await fetch('/api/quarterly', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'X-Tenant-ID': tenantSlug,
         },
         body: JSON.stringify({
           startDate,
@@ -83,7 +78,7 @@ export default function QuarterlyGeneratePage() {
       });
 
       setStep(3);
-    } catch (err) {
+    } catch {
       // Fallback offline simulation generator
       const fallbackContent = `# Executive Quarterly Operations Report
 **Period:** ${startDate} to ${endDate}

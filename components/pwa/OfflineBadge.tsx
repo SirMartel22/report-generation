@@ -3,36 +3,51 @@
 import { useEffect, useState } from 'react';
 import { Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { getOfflineDB } from '@/lib/offline/db';
+import { SyncManager } from '@/lib/offline/syncManager';
 
 export default function OfflineBadge({ tenantId }: { tenantId: string }) {
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  );
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    setIsOnline(navigator.onLine);
+    const syncManager = new SyncManager(tenantId);
 
-    const updateStatus = () => setIsOnline(navigator.onLine);
+    const checkQueue = async () => {
+      try {
+        const db = getOfflineDB(tenantId);
+        setPendingCount(await db.syncQueue.count());
+      } catch {
+        setPendingCount(0);
+      }
+    };
+
+    const updateStatus = async () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (online) {
+        await syncManager.syncPendingQueue();
+        await checkQueue();
+      }
+    };
 
     window.addEventListener('online', updateStatus);
     window.addEventListener('offline', updateStatus);
 
-    // Check pending count in Dexie
-    const checkQueue = async () => {
-      try {
-        const db = getOfflineDB(tenantId);
-        const count = await db.syncQueue.count();
-        setPendingCount(count);
-      } catch (err) {
-        // ignore
-      }
-    };
-
     checkQueue();
+    if (navigator.onLine) void updateStatus();
     const interval = setInterval(checkQueue, 3000);
+
+    const handleServiceWorkerMessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.data?.type === 'TRIGGER_SYNC') void updateStatus();
+    };
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
     return () => {
       window.removeEventListener('online', updateStatus);
       window.removeEventListener('offline', updateStatus);
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
       clearInterval(interval);
     };
   }, [tenantId]);

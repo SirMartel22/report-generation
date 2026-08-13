@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     const user = await db.user.findUnique({
-      where: { email },
+      where: { email: String(email).trim().toLowerCase() },
       include: {
         memberships: {
           include: {
